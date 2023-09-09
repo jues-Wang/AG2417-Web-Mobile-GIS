@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>	
+
+	<title>Quick Start - Leaflet</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<link rel="stylesheet" href="/static/mystyle.css">
+
+  	<!-- To be updated -->
+	<link rel="stylesheet" href= "/scripts/leaflet.css"/>
+	<script src="/scripts/leaflet.js"> </script>
+	<!-- <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"/>
+	<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script> -->
+	
+	<script src="https://code.jquery.com/jquery-3.4.1.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin= "anonymous"></script>
+
+
+</head>
+
+<body>
+
+	<div id="mapid" style="width: 600px; height: 600px;"></div>
+	<script>
+
+	// white script here
+
+	// 1.1 Create a simple map with Leaflet, of which the center is [59.324608,18.06736] and the zoom level is 12.
+	// var map = L.map ('mapid'). setView ([59.324608,18.06736], 12);
+	
+	// The basemap of OpenStreetMap
+	// var osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+	// 	attribution: 
+	// 	'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+	//	}).addTo(map);
+
+	// // The basemap of Google Map
+	// var gsm=L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+	// 	mixZoom: 5,
+	// 	maxZoom: 20,
+	// 	subdomains: ["mt0", "mt1", "mt2", "mt3"] 
+	//	})addTo(map);
+
+
+	// Using Lelfet, the user to add markers and shapes on the map. 
+
+	// A marker at the position of [59.324608, 18.06736] is added on the map. 
+	// When an user click the marker, a popup will come out and say :
+	// " Welcome to Stockholm!
+	// I'm a popup."
+	var marker=L.marker ([59.324608 , 18.06736])
+	// .addTo(map)
+	.bindPopup ("<b> Welcome to Stockholm !</b> <br/>I am a popup.");
+
+	// Add a circle on the map, which is centered at [59.346155, 18.049538] with a radius of 500 meters. 
+	// The outline is red and the fillcolor is #f03 with the opacity of 0.5.
+	// When an user click the circle, a popup will come out and say:"I am a circle."
+	var circle= L.circle ([59.346155 , 18.049538] , 500 , {
+		color: 'red ',
+		fillColor: '#f03 ',
+		fillOpacity: 0.5})
+	// .addTo(map)
+	.bindPopup ("I am a circle.");
+
+	// A polygon is added. This is a triangle with the three vertices located at
+	// [59.312686 ,18.016798] ,[59.330388 ,18.023071] ,[59.317601 ,18.041611].
+	// When an user click the polygon, a popup will come out and say:"I am a polygon."
+	var polygon = L.polygon ([
+		[59.312686 , 18.016798] ,
+		[59.330388 , 18.023071] ,
+		[59.317601 , 18.041611]])
+		// .addTo(map)
+		.bindPopup ("I am a polygon.");
+
+	// Add a marker at KTH with a custom icon
+	// var redIcon = L.icon({
+	//     iconUrl: '/static/leaf-red.png',
+	//     shadowUrl: '/static/leaf-shadow.png',
+
+	//     iconSize:     [38, 95], // size of the icon
+	//     shadowSize:   [50, 64], // size of the shadow
+	//     iconAnchor:   [22, 94], // point of the icon which will correspond to marker's location
+	//     shadowAnchor: [4, 62],  // the same for the shadow
+	//     popupAnchor:  [-3, -76] // point from which the popup should open relative to the iconAnchor
+	// });
+
+	// L.marker([59.34772481062859, 18.068549123811618], {icon: redIcon}).addTo(map);
+	// Add a marker at KTH with a custom icon
+	var KTHIcon = L.icon({
+		iconUrl: '/static/school.png',
+		iconSize:     [32, 32], // size of the icon
+		iconAnchor:   [22, 94], // point of the icon which will correspond to marker's location
+		popupAnchor:  [-3, -76] // point from which the popup should open relative to the iconAnchor
+	});
+	var KTHMarker = L.marker([59.34772481062859, 18.068549123811618], {icon: KTHIcon})
+	// .addTo(map);
+
+	//////////////////////////////////////////////////////////////////////////////////
+	// 1.2 Geojson
+	function onEachFeature ( feature , layer ) {
+	// var popupContent = "<p>I started out as a GeoJSON " +
+	// 	feature.geometry.type + ", but now I'm a Leaflet vector !</p >";
+	// 	layer.bindPopup(popupContent);
+
+	// popup the line number
+		let popupContent = `<p>My line number is ${feature.properties.number} </p>`;
+		layer.bindPopup(popupContent);
+
+		layer.on({
+          mouseover: highlightFeature,
+          mouseout: resetHighlight,
+        });
+	};
+
+	var metroline;
+	$.ajax ({
+		type: 'GET',
+		url: '/static/data.geojson',
+		dataType: 'json',
+		async:false ,
+		success:function(data){
+			metroline=L.geoJSON (data ,{
+				style: function(feature){
+					//return { color: "#438ddf"};
+					// return { color: "#6a0afc", opacity:0.8, weight: 5 };//purple
+					// console.log(feature.properties.color, feature.geometry);
+
+					//Show the color of each line according to the line color stored in the GeoJSON property 		
+					switch (feature.properties.color){
+						case "Green":
+							return { color: "green"};
+						case "Red": 
+							return { color: "red"};
+						case "Blue": 
+							return { color: "blue"};
+						default:
+							return { color: "#3c0afc", opacity:0.8, weight: 5 };
+					}
+
+				}, 
+				onEachFeature:onEachFeature
+			})
+			// . addTo (map);
+		}
+	});
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	// 1.4 Adding layer controls
+	//Add two base map layers Mapbox and Google Map so that you can choose one of them as the basemap.
+	//Google Maps
+	var gsm = L.tileLayer("http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",{
+        minzoom: 5,
+		maxZoom: 20,
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        });
+	//Mapbox Maps
+    var mbm = L.tileLayer(
+        "https://api.mapbox.com/styles/v1/mapbox/streets-v9/tiles/{z}/{x}/{y}?access_token=pk.eyJ1Ijoic3NhY3RsLSIsImEiOiJjbG03bHl1cnIwMjh3M3BsbW8zOWw4ZjdrIn0.WC8fdTEipCOJjhsDRqGyTQ"
+    );
+	var osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+	attribution: 
+	'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+	})
+
+	//Add two base map layers Mapbox and Google Map so that you can choose one of them as the basemap.
+	var baseMaps = {
+    "<span style='color: red'>Mapbox</span>": mbm,
+    "GoogleMap": gsm,
+	"OpenStreetMap": osm
+	};
+
+	//Add a layer group called data to include Marker layer, GeoJSON layer, etc.
+	var data = L.layerGroup([marker, circle, polygon, KTHMarker, metroline]);
+	var overlayMaps = {"data": data};
+
+	var map = L.map("mapid", {
+        center: [59.324608, 18.06736],
+        zoom: 12,
+        layers: [osm, data],
+      });
+	var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+	// layerControl.addBaseLayer(openTopoMap, "OpenTopoMap");
+	// layerControl.addOverlay(parks, "Parks");
+	////////////////////////////////////////////////////////////////////////////////////
+	// 1.3 Event
+	var popup = L.popup ();
+
+	function onMapClick(e){
+		popup
+		.setLatLng(e.latlng)
+		.setContent(" You clicked the map at " + e.latlng.toString ())
+		.openOn(map);
+		}
+	map.on ('click', onMapClick );
+
+
+	var info = L.control ({ position: 'bottomright'});
+	info.onAdd = function (map) {
+		this._div = L.DomUtil.create ('div', 'info');
+		this.update();
+		return this._div;
+	};
+	info.update = function(props){
+		this._div.innerHTML = props ?
+		'<h4>Line Number</h4><b>'+ 	props.number +
+		'</b><h4>Line Color</h4>'+ 	props.color
+        : 'Hover over a state';
+	};
+
+	info.addTo (map);
+
+	function highlightFeature(e){
+		var layer = e.target;
+		layer.setStyle({
+		weight: 5,
+		color: '#666',
+		dashArray: '',
+		fillOpacity: 0.7
+		});
+
+		layer.bringToFront();
+		info.update(layer.feature.properties);
+	}
+
+	function resetHighlight(e) {
+		metroline.resetStyle(e.target);
+		info.update();
+	}
+
+	</script>
+
+
+</body>
+</html>
