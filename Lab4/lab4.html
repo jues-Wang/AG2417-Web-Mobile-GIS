@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+	<title>Quick Start - Leaflet</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+	<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"> </script>
+
+	<script src="https://code.jquery.com/jquery-3.4.1.min.js"
+		integrity=" sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin=" anonymous"></script>
+
+	<script src="https://cdn.jsdelivr.net/npm/@turf/turf@5/turf.min.js"></script>
+
+</head>
+
+<body>
+
+	<div id="mapid" style="width: 600px; height: 600px;"></div>
+	<script>
+
+		var map = L.map('mapid').setView([59.324608, 18.06736], 11);
+		osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// Load markers data in postgres database by requesting the server 
+		var my_markers;
+
+		function onEachFeature(feature, layer) {
+			var popupContent = "Marker Name: " + feature.properties.name;
+			layer.bindPopup(popupContent);
+		}
+		function load_markers() {
+			if (my_markers) {
+				map.removeLayer(my_markers)
+			}
+			$.ajax({
+				type: 'GET',
+				url: '/api/get_markers_geojson',
+				async: false,
+				success: function (data) {
+					my_markers = L.geoJSON(data, {
+						onEachFeature: onEachFeature
+					});
+				}
+
+			});
+			if (my_markers) {
+				my_markers.addTo(map);
+			}
+		}
+		load_markers();
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// Double clicking on the map should show a popup on that point. The popup should ask the user
+		// to fill in a name for the marker. The position of the popup and the name should be saved in the
+		// database (Via a "save" button).
+
+		// Register a double click event on the map to open the popup
+		map.addEventListener('dblclick', open_popup);
+		// 
+		function open_popup(e) {
+			var popupLocation = new L.LatLng(e.latlng.lat, e.latlng.lng);
+			var popupContent =
+				" <div id='report'>" +
+				"<h1 class= 'report-title'>" + "Data Form" + "</h1>" +
+				"<p id= 'report-field-lat'>" +
+				"<span class= 'report-field-label'> Lat: </span>" +
+				"<span class= 'report-field-value' id='report-field-lat-value'>" + e.latlng.lat + "</span>" +
+				"</p>" +
+				"<p id= 'report-field-lon'>" +
+				" <span class= 'report-field-label'> Lng: </span>" +
+				" <span class= 'report-field-value' id='report-field-lon-value'>" + e.latlng.lng + "</span>" +
+				"</p>" +
+				"<p id= 'report-field-name'>" +
+				"<span class= 'report-field-label'> Name:</span>" +
+				"<input id= 'marker_name'>" +
+				"</p>" +
+				" <div class= 'report-btns'>" +
+				" <button id= 'save-button'>save</button>" +
+				" </div>";
+			popup = new L.Popup();
+			popup.setLatLng(popupLocation);
+			popup.setContent(popupContent);
+			popup.openOn(map);
+		}
+
+		// // The next step is to register click event for the save-button and send data to server for
+		// // saving marker’s information in the database. To add the click event
+		$(document).on('click', '#save-button', function (e) {
+			// PREPARE FORM DATA
+			var loc_data = {
+				name: document.getElementById("marker_name").value,
+				lat: $(document).find('#report-field-lat .report-field-value').text(),
+				lon: $(document).find('#report-field-lon .report-field-value').text()
+			}
+			// DO POST
+			$.ajax({
+				type: "POST",
+				contentType: "application/json",
+				url: "/save_marker",
+				data: JSON.stringify(loc_data),
+				success: function (marker) {
+					map.closePopup();
+					load_markers();
+				},
+				error: function (e) {
+					alert("Error!");
+					console.log("ERROR:", e);
+				}
+			});
+		});
+
+		// Now we need to implement a functionality where a single clicking event on the map 
+		// should draw a line to the nearest marker of the clicked position.
+
+		// First register a single click event on the map.
+		map.addEventListener('click', Identify);
+		map.addEventListener('click', IdentifyBuffer);
+		// We then need to send the clicked location coordinates to a backend service which should return a line geometry.
+		function Identify(e) {
+			$.ajax({
+				type: 'GET',
+				url: '/api/get_closest_marker?lon=' + e.latlng.lng + '&lat=' + e.latlng.lat, async: false,
+				success: function (data) {
+					line = L.geoJSON(data[0].row_to_json);
+					line.addTo(map);
+				}
+			});
+		}
+		function IdentifyBuffer(e) {
+			$.ajax({
+				type: 'GET',
+				url: '/api/get_closest_marker_buffer?lon=' + e.latlng.lng + '&lat=' + e.latlng.lat, async: false,
+				success: function (data) {
+					buffer = L.geoJSON(data[0].row_to_json);
+					buffer.addTo(map);
+				}
+			});
+		}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// turf.js
+		// Add 50-meter buffer to each marker
+		var buffer = turf.buffer(my_markers.toGeoJSON(), 150, {
+			units: 'meters'
+		});
+		L.geoJSON(buffer).addTo(map);
+
+		// flip: 
+		// Takes input features and flips all of their coordinates from [x, y] to [y, x].
+		var flipmarkers = turf.flip(my_markers.toGeoJSON());
+		L.geoJSON(flipmarkers).addTo(map);
+
+		// envelope: 
+		// Takes any number of features and returns a rectangular Polygon that encompasses all vertices.
+		var enveloped = turf.envelope(my_markers.toGeoJSON());
+		L.geoJSON(enveloped).addTo(map);
+
+		// transformRotate
+		// Rotates any geojson Feature or Geometry of a specified angle, around its centroid or a given pivot point.
+		var poly = turf.polygon([[[18.072338136421994,59.34737309206911],[18.06804663417211,59.35177879575008],[18.03955103864155,59.34526934114369],[18.072338136421994,59.34737309206911]]]);
+		// set the centroid around which the rotation will be performed
+		var options = {pivot: [18.03955103864155,59.34526934114369]};
+		// object to be rotated, angle = 35, options
+		var rotatedPoly = turf.transformRotate(poly, 35, options);
+		L.geoJSON(poly).addTo(map);
+		L.geoJSON(rotatedPoly).addTo(map);
+
+		
+
+
+
+	</script>
+
+
+
+</body>
+
+</html>
